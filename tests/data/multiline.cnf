@@ -1,0 +1,6 @@
+c Comments and clauses split across lines are supported.
+p cnf 4 3
+1
+  c An indented comment between literals.
+-2 0 3 3 0
+-3 4 0

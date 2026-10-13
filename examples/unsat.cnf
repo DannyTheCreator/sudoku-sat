@@ -1,0 +1,4 @@
+c A variable cannot be true and false at the same time.
+p cnf 1 2
+1 0
+-1 0
