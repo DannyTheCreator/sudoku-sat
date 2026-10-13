@@ -1,10 +1,12 @@
 # Sudoku SAT
 
+[![Build and test](https://github.com/DannyTheCreator/sudoku-sat/actions/workflows/ci.yml/badge.svg)](https://github.com/DannyTheCreator/sudoku-sat/actions/workflows/ci.yml)
+
 **用 C11 实现的 SAT 求解器与数独工具箱。** 支持普通数独、对角线数独（Sudoku X）、唯一解题目生成与终端游戏。
 
 SAT 部分采用 DPLL、双监视文字单元传播和赋值栈回溯；数独求解通过 729 个布尔变量编码为 CNF。运行程序只依赖 C 标准库。
 
-[快速开始](#快速开始) · [命令说明](#命令说明) · [实现原理](docs/ARCHITECTURE.md) · [重构说明](docs/CHANGES.md) · [上传 GitHub](docs/PUBLISHING.md)
+[快速开始](#快速开始) · [命令说明](#命令说明) · [文件格式](#文件格式) · [测试](#测试) · [实现原理](docs/ARCHITECTURE.md)
 
 ## 功能
 
@@ -120,7 +122,7 @@ quit          退出
 
 DIMACS CNF 需要 `p cnf <变量数> <子句数>` 头部。每条子句以 `0` 结束，可跨行；行首（允许缩进）的 `c` 表示注释。读取器检查子句数、变量范围、整数溢出和缺失终止符。重复文字会合并，永真子句会跳过；头部数量按原始输入子句检查。
 
-SAT 结果采用与原项目相近的格式：
+SAT 结果格式：
 
 ```text
 s 1
@@ -148,13 +150,13 @@ t 0.000
 │   └── main.c               命令行与终端交互
 ├── examples/                普通 / 对角线题目与 SAT / UNSAT 示例
 ├── tests/                   C 回归测试与 Python 穷举对照
-├── docs/                    架构、重构与发布说明
+├── docs/                    SAT 与数独的实现原理
 └── .github/                 持续集成与 issue / PR 模板
 ```
 
-## 验证与限制
+## 测试
 
-`ctest` 运行 4 组 C 测试；找到 Python 后，还会运行命令行端到端测试与 250 组固定随机种子的 SAT 穷举对照。测试覆盖分支回溯、空公式 / 空子句、超过原 5000 个变量的输入、异常 CNF、答案边界、两种数独模式、唯一性与种子复现。
+`ctest` 运行 4 组 C 测试；找到 Python 后，还会运行命令行端到端测试与 250 组固定随机种子的 SAT 穷举对照。测试覆盖分支回溯、空公式 / 空子句、动态变量数量、异常 CNF、答案边界、两种数独模式、唯一性与种子复现。
 
 可将警告视为错误：
 
@@ -172,12 +174,10 @@ cmake --build build-asan --parallel
 ctest --test-dir build-asan --output-on-failure
 ```
 
-这是面向学习和小中型问题的 DPLL 实现，尚未加入 CDCL、冲突学习或重启策略；大型困难 SAT 实例仍可能耗时较长。生成与唯一性检查使用位掩码 / MRV 搜索，求解命令使用 SAT。测试通过并不构成对任意输入的形式化正确性证明。
+GitHub Actions 会在代码提交与拉取请求时运行 Windows、Linux、macOS 构建和测试，并在 Linux 下运行 AddressSanitizer 与 UndefinedBehaviorSanitizer。
 
-跨平台 CI 和 Linux sanitizer 工作流已配置，实际云端运行结果以仓库 Actions 页面为准。Actions 配置参考 [checkout 官方说明](https://github.com/actions/checkout) 与 [setup-python 官方说明](https://github.com/actions/setup-python)。
+## 实现与适用范围
 
-## 发布
+数独求解将盘面编码为 CNF，由 DPLL 求解器返回模型。唯一性检查与题目生成采用位掩码和最少候选数优先（MRV）搜索。详细约束、回溯过程和接口约定见 [实现原理](docs/ARCHITECTURE.md)。
 
-详细步骤见 [上传 GitHub](docs/PUBLISHING.md)。`.gitignore` 会排除构建目录、可执行文件、临时结果和本地编辑器配置。
-
-仓库尚未指定开源许可证；发布者可在决定授权方式后添加 `LICENSE`。
+求解器面向算法学习和小中型 SAT 问题，尚未实现 CDCL、冲突学习或重启策略；大型困难实例可能耗时较长。
