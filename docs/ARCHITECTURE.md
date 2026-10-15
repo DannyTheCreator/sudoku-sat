@@ -1,18 +1,20 @@
-# 实现原理
+# Implementation
 
-## SAT
+**English** | [简体中文](ARCHITECTURE.zh-CN.md)
 
-CNF 存储为动态子句数组，每条子句持有文字数组。公式在求解过程中保持不变；同一公式可以重复求解，求解上下文与结果各自管理内存。
+## SAT solver
 
-每个非空子句维护两个监视位置。赋值使某个监视文字变假时，只访问监视该文字的子句：优先移动到一个尚未为假的文字；无法移动时，另一文字为假则产生冲突，未赋值则产生单元传播。单文字子句只注册一个监视项。
+A CNF formula is a dynamic array of clauses, each owning an array of integer literals. Solving leaves the formula unchanged, so it can be solved repeatedly. The solver context and result own their respective allocations.
 
-每次赋值进入 trail。分支保存 trail 的检查点，冲突后撤销检查点之后的全部赋值，再尝试相反极性。两个极性都失败时退回上一个分支。搜索循环采用迭代方式，避免 SAT 分支深度直接增加 C 调用栈深度。
+Each nonempty clause has two watched positions. When an assignment makes a watched literal false, propagation visits only clauses watching that literal. It first tries to move the watch to another literal that is not false. If no replacement exists, the other watched literal produces a conflict when false or a unit assignment when unassigned. A unit clause registers one watch-list entry.
 
-决策优先从最短的未满足子句选择变量，同长度时参考初始化时计算的双极性 Jeroslow–Wang 权重。权重属于静态启发式，求解期间不更新。找到模型后补全未赋值变量为假，并再次检查所有保留子句。
+Every assignment is appended to a trail. A decision records the current trail position; a conflict rolls back all assignments after that checkpoint and tries the opposite polarity. If both polarities fail, search returns to the previous decision. The search loop is iterative, so SAT decision depth does not consume the C call stack.
 
-## 数独编码
+Branch selection favors the shortest unsatisfied clause, using static, two-sided Jeroslow–Wang weights to choose among candidate variables. These weights are computed at initialization and are not updated during search. Once a model is found, unassigned variables are set to false and all retained clauses are checked again.
 
-零基行列 `r, c ∈ [0, 8]`，数字 `d ∈ [1, 9]` 对应：
+## Sudoku encoding
+
+For zero-based row and column indices `r, c ∈ [0, 8]` and digit `d ∈ [1, 9]`:
 
 ```text
 v = 81 × r + 9 × c + d
@@ -21,26 +23,26 @@ c = ((v - 1) % 81) / 9
 d = (v - 1) % 9 + 1
 ```
 
-变量范围为 1–729。以下每一组 9 个变量均施加「恰好一个为真」约束：一个长度为 9 的至少一个子句，加上 36 个两两互斥子句。
+Variables range from 1 to 729. Each of these nine-variable groups receives an exactly-one constraint: one nine-literal clause requiring at least one true variable, plus 36 pairwise exclusion clauses.
 
-- 每个格子的 9 个候选数字。
-- 每行中某个数字的 9 个位置。
-- 每列中某个数字的 9 个位置。
-- 每个 3×3 宫中某个数字的 9 个位置。
-- 对角线模式下，每条主对角线中某个数字的 9 个位置。
+- The nine candidate digits in a cell.
+- The nine positions for a digit in a row.
+- The nine positions for a digit in a column.
+- The nine positions for a digit in a 3×3 box.
+- In diagonal mode, the nine positions for a digit on each main diagonal.
 
-普通空盘面有 `324 × 37 = 11988` 条子句；对角线模式增加 `18 × 37 = 666` 条。每个给定数字再增加一个单元子句。头部数量由实际公式生成，运行不依赖预制基础 CNF。
+An empty standard board produces `324 × 37 = 11988` clauses. Diagonal mode adds `18 × 37 = 666`. Every clue adds one unit clause. The DIMACS header is derived from the formula, and solving does not require a prebuilt base CNF file.
 
-## 唯一解与生成
+## Solution counting and generation
 
-独立的数独搜索器使用 9 位掩码记录行、列、宫及对角线已占用数字，并优先选择候选最少的格子（MRV）。计数搜索在达到调用者要求的上限时停止；唯一性检查的上限为 2。
+A separate Sudoku searcher tracks occupied digits in rows, columns, boxes, and active diagonals using nine-bit masks. It selects an empty cell with the fewest candidates (MRV). Counting stops at the requested limit; uniqueness checks use a limit of two.
 
-生成器使用局部 xorshift32 状态打乱候选数字与挖洞顺序。先生成完整有效盘面，随后尝试移除每个数字：仅当新盘面仍恰好有一个解时保留移除。一个盘面不能达到指定洞数时，重新生成；最多尝试 8 个盘面。
+Generation uses a local xorshift32 state to shuffle candidate digits and the order of clue removal. It first constructs a valid complete board, then attempts to remove clues. A removal is retained only when the remaining puzzle still has exactly one solution. If a board cannot reach the requested number of blanks, generation starts another board, with a maximum of eight attempts.
 
-函数只在成功时修改调用者的题目与答案，因此失败不会留下被误认为有效输出的半成品。相同种子、模式、洞数和实现版本可复现结果。
+The caller's puzzle and solution are updated only on success. The same seed, mode, hole count, and implementation version reproduce the same result.
 
-## 接口约定
+## API conventions
 
-`SatFormula` 和 `SatResult` 必须先调用对应的 `init`，使用结束后调用 `free`。添加子句复制调用者数组；读入失败保留原公式；成功读入替换公式。`sat_solve` 替换旧结果，SAT 时 `values[1..variable_count]` 为完整模型，UNSAT / ERROR 时没有模型。
+Initialize `SatFormula` and `SatResult` with their respective `init` functions and release them with `free`. Adding a clause copies the caller's array. A failed file read preserves the existing formula; a successful read replaces it. `sat_solve` replaces the previous result. For SAT, `values[1..variable_count]` contains a complete model; UNSAT and ERROR results have no model.
 
-`SudokuBoard` 中 0 表示空格，1–9 表示数字。文件读入只检查字符与格子数，具体模式的规则由 `sudoku_validate` 检查。数独搜索递归深度最多 81，SAT 搜索不使用递归。
+In `SudokuBoard`, 0 means blank and 1–9 represent digits. File reading checks the character format and cell count; `sudoku_validate` checks the rules for the selected mode. Sudoku search has a maximum recursion depth of 81; SAT search is iterative.

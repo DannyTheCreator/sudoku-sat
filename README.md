@@ -1,51 +1,35 @@
 # Sudoku SAT
 
+**English** | [简体中文](README.zh-CN.md)
+
 [![Build and test](https://github.com/DannyTheCreator/sudoku-sat/actions/workflows/ci.yml/badge.svg)](https://github.com/DannyTheCreator/sudoku-sat/actions/workflows/ci.yml)
 
-**用 C11 实现的 SAT 求解器与数独工具箱。** 支持普通数独、对角线数独（Sudoku X）、唯一解题目生成与终端游戏。
+A portable C11 SAT solver and Sudoku toolkit with standard and diagonal Sudoku solving, unique puzzle generation, and an interactive terminal game.
 
-SAT 部分采用 DPLL、双监视文字单元传播和赋值栈回溯；数独求解通过 729 个布尔变量编码为 CNF。运行程序只依赖 C 标准库。
+The SAT solver implements DPLL with two watched literals, unit propagation, and assignment-trail backtracking. Sudoku puzzles are encoded as CNF formulas over 729 Boolean variables. The executable uses only the C standard library.
 
-[快速开始](#快速开始) · [命令说明](#命令说明) · [文件格式](#文件格式) · [测试](#测试) · [实现原理](docs/ARCHITECTURE.md)
+[Quick start](#quick-start) · [Commands](#commands) · [File formats](#file-formats) · [Testing](#testing) · [Implementation](docs/ARCHITECTURE.md)
 
-## 功能
+## Features
 
-| 功能 | 说明 |
+| Feature | Description |
 | --- | --- |
-| SAT 求解 | 读取 DIMACS CNF，输出 SAT / UNSAT、完整赋值和求解统计 |
-| 数独求解 | 普通 9×9 数独；可启用两条主对角线约束 |
-| CNF 导出 | 将题目导出为 DIMACS 文件，便于观察编码或交给其他求解器 |
-| 唯一解生成 | 每次挖洞后计数到第二个解；相同模式、洞数与种子可复现 |
-| 终端游戏 | 填写、清除、提示、查看答案、检查当前填写能否完成 |
-| 工程检查 | CMake / CTest；GitHub Actions 配置覆盖 Windows、Linux、macOS |
+| SAT solving | Read DIMACS CNF and report SAT or UNSAT, complete assignments, and solver statistics |
+| Sudoku solving | Solve standard 9×9 puzzles or Sudoku X with both main diagonals constrained |
+| CNF export | Export a puzzle as DIMACS CNF for inspection or use with another solver |
+| Unique puzzle generation | Check uniqueness after each removed clue; reproduce puzzles with a fixed seed |
+| Terminal game | Enter or clear values, request hints, show a solution, and check whether current entries can be completed |
+| Build and tests | CMake, CTest, and GitHub Actions for Windows, Linux, and macOS |
 
-## 快速开始
+## Quick start
 
-需要支持 C11 的编译器和 CMake 3.21+。Python 3.8+ 用于可选的命令行与随机公式验证，不参与程序运行。
+Requirements:
 
-### Windows / MinGW
+- A compiler with C11 support, such as GCC, Clang, or a recent MSVC toolchain.
+- CMake 3.21 or later.
+- Python 3.8 or later for optional CLI and differential tests. Python is not needed to run the executable.
 
-在项目根目录打开 PowerShell。确保 `gcc`、`mingw32-make` 和 `cmake` 在 PATH 中：
-
-```powershell
-cmake -S . -B build -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release
-cmake --build build --parallel
-ctest --test-dir build --output-on-failure
-.\build\sudoku.exe solve examples\standard.txt --check-unique
-```
-
-### Windows / Visual Studio
-
-在安装 C/C++ 工具链的 Visual Studio 开发者终端中执行：
-
-```powershell
-cmake -S . -B build
-cmake --build build --config Release --parallel
-ctest --test-dir build -C Release --output-on-failure
-.\build\Release\sudoku.exe solve examples\standard.txt --check-unique
-```
-
-切换构建生成器时应使用新的构建目录，例如 `build-msvc`。
+Run these commands from the project root.
 
 ### Linux / macOS
 
@@ -56,57 +40,98 @@ ctest --test-dir build --output-on-failure
 ./build/sudoku solve examples/standard.txt --check-unique
 ```
 
-以下示例使用 `./build/sudoku`，Windows 下替换为对应的 `.exe` 路径即可。直接运行程序会显示交互菜单，支持保存求解结果、选择普通 / 对角线模式、保存生成题目并立即开始游戏；`--help` 显示完整参数。终端提示使用英文，便于在不同终端编码下运行。
+### Windows / MinGW
 
-## 命令说明
+Ensure `gcc`, `mingw32-make`, and `cmake` are available on `PATH`, then open PowerShell:
 
-### 求解与导出
+```powershell
+cmake -S . -B build -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release
+cmake --build build --parallel
+ctest --test-dir build --output-on-failure
+.\build\sudoku.exe solve examples\standard.txt --check-unique
+```
+
+### Windows / Visual Studio
+
+Use a Visual Studio developer terminal with the C/C++ toolchain installed:
+
+```powershell
+cmake -S . -B build
+cmake --build build --config Release --parallel
+ctest --test-dir build -C Release --output-on-failure
+.\build\Release\sudoku.exe solve examples\standard.txt --check-unique
+```
+
+Use a separate build directory, such as `build-msvc`, when switching generators.
+
+The examples below use `./build/sudoku`; substitute the appropriate `.exe` path on Windows. Running the executable without arguments opens the interactive menu. Use `--help` for the command reference.
+
+## Commands
+
+### Solve SAT formulas
 
 ```bash
 ./build/sudoku sat examples/sat.cnf -o answer.res
 ./build/sudoku sat examples/unsat.cnf -o unsat.res
+```
+
+The command reports satisfiability and CPU time, decisions, propagations, and conflicts. `-o` saves a result file. UNSAT is a normal solver result and returns exit code 2.
+
+### Solve Sudoku puzzles
+
+```bash
 ./build/sudoku solve examples/standard.txt --check-unique -o solved.txt
 ./build/sudoku solve examples/diagonal.txt --diagonal --check-unique
+```
+
+`--check-unique` reports `unique` or `multiple`. A solvable puzzle with multiple solutions still returns success. In diagonal mode, both length-nine main diagonals must contain each digit exactly once; the center cell belongs to both diagonals.
+
+### Export CNF
+
+```bash
 ./build/sudoku encode examples/standard.txt puzzle.cnf
+./build/sudoku encode examples/diagonal.txt diagonal.cnf --diagonal
 ./build/sudoku sat puzzle.cnf -o puzzle.res
 ```
 
-`--check-unique` 会报告 `unique` 或 `multiple`。可解但不唯一的题目仍返回成功。对角线模式要求两条长度为 9 的主对角线各包含一次 1–9；中心格同时受两条约束影响。
-
-### 生成题目
+### Generate a unique puzzle
 
 ```bash
 ./build/sudoku generate --holes 40 --seed 42 -o generated.txt --solution solution.txt
 ./build/sudoku generate --holes 50 --seed 42 --diagonal -o generated-x.txt
 ```
 
-默认挖 40 个洞，默认种子取当前时间。`--holes` 范围为 0–64，`--seed` 范围为 0–4294967295，种子 0 映射到固定的非零内部状态。
+The default is 40 blank cells and a time-based seed. `--holes` accepts 0–64; `--seed` accepts 0–4294967295. Seed 0 maps to a fixed nonzero internal state. The same seed, mode, hole count, and implementation version reproduce the same result.
 
-生成器最多尝试 8 个完整盘面。成功时洞数与请求值一致且题目有唯一解；无法达到目标时返回退出码 2，不输出不满足条件的题目。洞数较高时可能失败，洞数也不等同于解题难度等级。
+The generator tries at most eight complete grids. On success, the puzzle has exactly the requested number of blanks and one solution. If the target cannot be reached, it returns exit code 2 without writing an incomplete result. High hole counts may fail; the number of blanks is not a difficulty rating.
 
-### 终端游戏
+### Play in the terminal
 
 ```bash
 ./build/sudoku play examples/standard.txt
 ./build/sudoku play examples/diagonal.txt --diagonal
 ```
 
-行列均使用 **1–9**：
+Rows and columns use **1–9**:
 
-```text
-set 1 3 4     填写第 1 行、第 3 列为 4
-clear 1 3     清空该格
-hint 1 3      按一个有效解填写该格
-check         检查当前填写是否仍有解
-answer        显示一个有效解
-quit          退出
-```
+| Command | Action |
+| --- | --- |
+| `set 1 3 4` | Set row 1, column 3 to 4 |
+| `clear 1 3` | Clear that cell |
+| `hint 1 3` | Fill that cell from one valid solution |
+| `check` | Check whether the current entries can be completed |
+| `answer` | Display one valid solution |
+| `quit` | Exit the game |
 
-初始数字不可修改。与当前行、列、宫或对角线冲突的填写会被拒绝。对于存在多个解的输入，提示参考求解器返回的一个有效解，游戏完成判定接受任何满足约束的完整盘面。
+Original clues are locked. Moves that conflict with the current row, column, box, or active diagonals are rejected. For puzzles with multiple solutions, hints follow one valid solution; completion accepts any full board that satisfies the rules.
 
-## 文件格式
+The interactive menu also supports saving solver results, selecting either Sudoku mode, saving generated puzzles, and immediately starting a game.
 
-数独输入包含恰好 81 个格子，`1`–`9` 表示数字，`.` 或 `0` 表示空格，允许换行与空白：
+## File formats
+
+### Sudoku
+
+A puzzle contains exactly 81 cells. Use `1`–`9` for clues and `.` or `0` for blanks. Whitespace is ignored:
 
 ```text
 53..7....
@@ -120,9 +145,19 @@ quit          退出
 ....8..79
 ```
 
-DIMACS CNF 需要 `p cnf <变量数> <子句数>` 头部。每条子句以 `0` 结束，可跨行；行首（允许缩进）的 `c` 表示注释。读取器检查子句数、变量范围、整数溢出和缺失终止符。重复文字会合并，永真子句会跳过；头部数量按原始输入子句检查。
+### DIMACS CNF
 
-SAT 结果格式：
+```text
+c A small satisfiable formula
+p cnf 3 3
+1 2 0
+-1 3 0
+-2 -3 0
+```
+
+The header declares the variable and clause counts. Each clause ends with `0` and may span lines. Lines starting with `c`, optionally preceded by whitespace, are comments. The reader checks clause counts, variable ranges, integer overflow, and missing terminators. Duplicate literals are merged and tautological clauses are discarded after validating the original clause count.
+
+### SAT results
 
 ```text
 s 1
@@ -130,35 +165,39 @@ v 1 -2 3 0
 t 0.000
 ```
 
-`s 1` 表示可满足，`s 0` 表示不可满足；`v` 是完整模型并以 `0` 结束；`t` 为求解 CPU 时间，单位毫秒。未参与约束的变量在成功模型中取假。输出路径按原样使用，指定路径已存在时会覆盖；程序不会自动创建父目录。
+`s 1` means SAT; `s 0` means UNSAT. SAT results include a complete model on the `v` line, terminated by `0`. Unconstrained variables are assigned false. `t` records solver CPU time in milliseconds.
 
-| 退出码 | 含义 |
+Output paths are used as supplied. Existing output files are overwritten, and parent directories must already exist.
+
+| Exit code | Meaning |
 | --- | --- |
-| 0 | 操作成功 |
-| 1 | 参数、格式、冲突初值、文件读写或内部错误 |
-| 2 | 正常求解判定无解，或唯一解生成未达到目标洞数 |
+| 0 | Success |
+| 1 | Invalid arguments, malformed input, conflicting clues, I/O failure, or an internal error |
+| 2 | UNSAT, an unsolvable puzzle, or an unmet generation target |
 
-## 项目结构
+## Project structure
 
 ```text
 .
-├── include/                 SAT 与数独公共接口
+├── include/                 Public SAT and Sudoku interfaces
 ├── src/
-│   ├── sat.c                DPLL、监视文字、赋值栈
-│   ├── dimacs.c             CNF / 结果文件读写
-│   ├── sudoku.c             约束编码、求解、唯一解计数与生成
-│   └── main.c               命令行与终端交互
-├── examples/                普通 / 对角线题目与 SAT / UNSAT 示例
-├── tests/                   C 回归测试与 Python 穷举对照
-├── docs/                    SAT 与数独的实现原理
-└── .github/                 持续集成与 issue / PR 模板
+│   ├── sat.c                DPLL, watched literals, and assignment trails
+│   ├── dimacs.c             CNF and result-file I/O
+│   ├── sudoku.c             Encoding, solving, solution counting, and generation
+│   └── main.c               CLI and interactive terminal interface
+├── examples/                Sudoku puzzles and SAT / UNSAT formulas
+├── tests/                   C regression tests and a Python brute-force oracle
+├── docs/                    Implementation notes in English and Chinese
+├── .github/                 CI workflows and issue / pull request templates
+├── README.md                English documentation
+└── README.zh-CN.md          Chinese documentation
 ```
 
-## 测试
+## Testing
 
-`ctest` 运行 4 组 C 测试；找到 Python 后，还会运行命令行端到端测试与 250 组固定随机种子的 SAT 穷举对照。测试覆盖分支回溯、空公式 / 空子句、动态变量数量、异常 CNF、答案边界、两种数独模式、唯一性与种子复现。
+CTest runs four C suites. When Python is available, it also runs CLI integration tests and compares 250 deterministic random SAT formulas against exhaustive enumeration. Coverage includes backtracking, empty formulas and clauses, dynamic variable counts, malformed CNF, model decoding, both Sudoku modes, uniqueness, and seed reproducibility.
 
-可将警告视为错误：
+Treat compiler warnings as errors:
 
 ```bash
 cmake -S . -B build-strict -DCMAKE_BUILD_TYPE=Release -DWARNINGS_AS_ERRORS=ON
@@ -166,7 +205,7 @@ cmake --build build-strict --parallel
 ctest --test-dir build-strict --output-on-failure
 ```
 
-GCC / Clang 环境下的内存与未定义行为检查：
+Run AddressSanitizer and UndefinedBehaviorSanitizer with a supported GCC / Clang toolchain:
 
 ```bash
 cmake -S . -B build-asan -DCMAKE_BUILD_TYPE=Debug -DENABLE_SANITIZERS=ON
@@ -174,10 +213,10 @@ cmake --build build-asan --parallel
 ctest --test-dir build-asan --output-on-failure
 ```
 
-GitHub Actions 会在代码提交与拉取请求时运行 Windows、Linux、macOS 构建和测试，并在 Linux 下运行 AddressSanitizer 与 UndefinedBehaviorSanitizer。
+GitHub Actions runs Windows, Linux, and macOS builds and tests on pushes and pull requests, plus memory and undefined-behavior checks on Linux.
 
-## 实现与适用范围
+## Implementation and scope
 
-数独求解将盘面编码为 CNF，由 DPLL 求解器返回模型。唯一性检查与题目生成采用位掩码和最少候选数优先（MRV）搜索。详细约束、回溯过程和接口约定见 [实现原理](docs/ARCHITECTURE.md)。
+Sudoku solving uses CNF encoding and the DPLL solver. Puzzle generation and solution counting use bit masks and minimum-remaining-values (MRV) search. See the [implementation notes](docs/ARCHITECTURE.md) for the constraints, backtracking behavior, and API ownership rules.
 
-求解器面向算法学习和小中型 SAT 问题，尚未实现 CDCL、冲突学习或重启策略；大型困难实例可能耗时较长。
+The solver is intended for algorithm study and small to medium SAT problems. It does not implement CDCL, clause learning, or restarts; large, difficult instances may take substantial time.
